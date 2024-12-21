@@ -35,14 +35,14 @@ public class HoldingsController {
 
     @CrossOrigin(origins = "*")
     @PutMapping("/buy/{symbol}")
-    public void buyTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty) throws Exception {
-        holdingsService.buyTradeToHolding(symbol,qty);
+    public boolean buyTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty) {
+        return holdingsService.buyTradeToHolding(symbol,qty);
     }
 
     @CrossOrigin(origins = "*")
     @PutMapping("/sell/{symbol}")
-    public void sellTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty) throws Exception {
-        holdingsService.sellTradeToHolding(symbol,qty);
+    public boolean sellTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty) {
+        return holdingsService.sellTradeToHolding(symbol,qty);
     }
 
 

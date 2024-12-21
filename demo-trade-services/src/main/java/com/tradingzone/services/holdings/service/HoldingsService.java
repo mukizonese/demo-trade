@@ -31,7 +31,7 @@ public class HoldingsService {
     @Autowired
     private TradeJedisService tradeJedisService;
 
-    public void buyTradeToHolding(String symbol, Integer qty){
+    public boolean buyTradeToHolding(String symbol, Integer qty){
         HoldingEntity entity = new HoldingEntity();
         entity.setUsrId(3);
         entity.setTckrSymb(symbol);
@@ -43,10 +43,19 @@ public class HoldingsService {
         String pattern = "yyyy-MM-dd HH:mm:ss";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
         entity.setTradDt(Timestamp.valueOf((LocalDateTime.now()).format(formatter)));
-        holdingJpaRepository.save(entity);
+        try{
+            holdingJpaRepository.save(entity);
+        }catch (Exception e){
+            log.error("Error while buyTradeToHolding Symbol {} Qty {}",symbol , qty);
+            log.error(e.getLocalizedMessage());
+            return false;
+        }
+
+        log.info("BuyTradeToHolding Symbol {} Qty {} successfull. ",symbol , qty);
+        return true;
     }
 
-    public void sellTradeToHolding(String symbol, Integer qty){
+    public boolean sellTradeToHolding(String symbol, Integer qty){
         HoldingEntity entity = new HoldingEntity();
         entity.setUsrId(3);
         entity.setTckrSymb(symbol);
@@ -58,7 +67,15 @@ public class HoldingsService {
         String pattern = "yyyy-MM-dd HH:mm:ss";
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
         entity.setTradDt(Timestamp.valueOf((LocalDateTime.now()).format(formatter)));
-        holdingJpaRepository.save(entity);
+        try{
+            holdingJpaRepository.save(entity);
+        }catch (Exception e){
+            log.error("Error while sellTradeToHolding Symbol {} Qty {}",symbol , qty);
+            log.error(e.getLocalizedMessage());
+            return false;
+        }
+        log.info("SellTradeToHolding Symbol {} Qty {} successfull. ",symbol , qty);
+        return true;
     }
 
 
