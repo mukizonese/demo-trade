@@ -37,13 +37,59 @@ CREATE TABLE IF NOT EXISTS TRADES (
   INDEX(TradDt, FinInstrmId,TckrSymb)
 ) engine=InnoDB;
 
+--CREATE TABLE IF NOT EXISTS HOLDINGS (
+--   UsrId INT(20) UNSIGNED NOT NULL,
+--   TckrSymb VARCHAR(10) NOT NULL,
+--   Pric DOUBLE(15,2) UNSIGNED NOT NULL,
+--   Qty INT(20) UNSIGNED NOT NULL,
+--   TradDt TIMESTAMP NOT NULL,
+--   Action VARCHAR(4) NOT NULL,
+--   PRIMARY KEY (UsrId,TckrSymb,TradDt),
+--  INDEX(UsrId, TckrSymb)
+--) engine=InnoDB;
+
 CREATE TABLE IF NOT EXISTS HOLDINGS (
-   UsrId INT(20) UNSIGNED NOT NULL,
-   TckrSymb VARCHAR(10) NOT NULL,
-   Pric DOUBLE(15,2) UNSIGNED NOT NULL,
-   Qty INT(20) UNSIGNED NOT NULL,
-   TradDt TIMESTAMP NOT NULL,
-   Action VARCHAR(4) NOT NULL,
-   PRIMARY KEY (UsrId,TckrSymb,TradDt),
-  INDEX(UsrId, TckrSymb)
-) engine=InnoDB;
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,           -- Surrogate key
+    UsrId INT(20) UNSIGNED NOT NULL,
+    TckrSymb VARCHAR(10) NOT NULL,
+    Pric DOUBLE(15,2) UNSIGNED NOT NULL,
+    Qty INT(20) UNSIGNED NOT NULL,
+    TradDt TIMESTAMP NOT NULL,
+    Action VARCHAR(4) NOT NULL,
+    UNIQUE KEY uq_usr_symb_date (UsrId, TckrSymb, TradDt),
+    INDEX idx_usr_symb (UsrId, TckrSymb)
+) ENGINE=InnoDB;
+
+INSERT INTO HOLDINGS (UsrId, TckrSymb, Pric, Qty, TradDt, Action)
+VALUES (3, 'HDFCBANK', 1980.10, 10, '2025-06-09 00:00:00', 'B')
+ON DUPLICATE KEY UPDATE
+  Pric = VALUES(Pric),
+  Qty = VALUES(Qty),
+  Action = VALUES(Action);
+
+CREATE
+    OR REPLACE
+    VIEW LATEST_TRADES
+    AS
+	(SELECT * FROM (
+		SELECT
+			*,
+			row_number() OVER(PARTITION BY TckrSymb ORDER BY TradDt DESC) AS rn
+		FROM
+        TRADES
+	) t
+	WHERE t.rn = 1);
+
+CREATE OR REPLACE VIEW LATEST_HOLDINGS AS (
+    SELECT H.UsrId, H.TckrSymb, H.Qty, H.TradDt, H.Pric,
+           H.Qty * H.Pric as AvgPric,
+           LT.ClsPric as CurPric,
+           H.Qty * LT.ClsPric as CurValue,
+           (H.Qty * LT.ClsPric) - (H.Qty * H.Pric) as PNL
+    FROM HOLDINGS H
+    INNER JOIN (
+        SELECT TradDt as LatTradDt, TckrSymb, ClsPric FROM LATEST_TRADES
+    ) LT
+    ON H.TckrSymb = LT.TckrSymb
+    WHERE H.Action = 'B'
+);

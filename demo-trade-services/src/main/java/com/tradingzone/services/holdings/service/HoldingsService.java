@@ -123,11 +123,12 @@ public class HoldingsService {
         int i = 0;
 
         for (HoldingEntity holdingEntity : lst) {
-            if("B".equalsIgnoreCase(holdingEntity.getAction())){
+            String action = holdingEntity.getAction();
+            if("B".equalsIgnoreCase(action) || "BUY".equalsIgnoreCase(action)){
                 qty += holdingEntity.getQty();
                 sum += holdingEntity.getQty() * holdingEntity.getPric();
 
-            }else{
+            }else if("S".equalsIgnoreCase(action) || "SELL".equalsIgnoreCase(action)){
                 qty -= holdingEntity.getQty();
                 sum -= holdingEntity.getQty() * holdingEntity.getPric();
 
@@ -147,8 +148,14 @@ public class HoldingsService {
             holdingValue.setNetChng(holdingValue.getCurrValue().subtract(holdingValue.getTotCost()));
 
             MathContext pctmc = new MathContext(1);
-            BigDecimal changePct = (holdingValue.getNetChng().divide(holdingValue.getCurrValue(),pctmc)).multiply(new BigDecimal("100"));
-            changePct.setScale(2, RoundingMode.UP);
+            BigDecimal changePct = BigDecimal.ZERO;
+            
+            // Check if current value is not zero before performing division
+            if (holdingValue.getCurrValue().compareTo(BigDecimal.ZERO) != 0) {
+                changePct = (holdingValue.getNetChng().divide(holdingValue.getCurrValue(),pctmc)).multiply(new BigDecimal("100"));
+                changePct = changePct.setScale(2, RoundingMode.UP);
+            }
+            
             holdingValue.setNetChngPct(changePct);
 
             holdingValue.setPrvsClsgPric(trade.getPrvsClsgPric());
@@ -184,12 +191,19 @@ public class HoldingsService {
         holdings.setTotDayChng(totDayChng);
 
         MathContext pctmc = new MathContext(2);
-        BigDecimal netChngPct = (holdings.getTotNetChng().divide(holdings.getTotInvestment(),pctmc)).multiply(new BigDecimal("100"));
-        netChngPct.setScale(2, RoundingMode.UP);
+        BigDecimal netChngPct = BigDecimal.ZERO;
+        BigDecimal dayChngPct = BigDecimal.ZERO;
+        
+        // Check if total investment is not zero before performing division
+        if (holdings.getTotInvestment().compareTo(BigDecimal.ZERO) != 0) {
+            netChngPct = (holdings.getTotNetChng().divide(holdings.getTotInvestment(),pctmc)).multiply(new BigDecimal("100"));
+            netChngPct = netChngPct.setScale(2, RoundingMode.UP);
+            
+            dayChngPct = (holdings.getTotDayChng().divide(holdings.getTotInvestment(),pctmc)).multiply(new BigDecimal("100"));
+            dayChngPct = dayChngPct.setScale(2, RoundingMode.UP);
+        }
+        
         holdings.setTotNetChngPct(netChngPct);
-
-        BigDecimal dayChngPct = (holdings.getTotDayChng().divide(holdings.getTotInvestment(),pctmc)).multiply(new BigDecimal("100"));
-        dayChngPct.setScale(2, RoundingMode.UP);
         holdings.setTotDayChngPct(dayChngPct);
 
         return holdings;
