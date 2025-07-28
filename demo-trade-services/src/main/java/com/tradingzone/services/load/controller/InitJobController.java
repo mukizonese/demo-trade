@@ -13,13 +13,11 @@ public class InitJobController {
     @Autowired
     private InitAwsJob initAwsJob;
 
-    @CrossOrigin(origins = "*")
     @GetMapping("/loaddataall/")
     public String loadDataAll(){
         return initAwsJob.loadDataAll();
     }
 
-    @CrossOrigin(origins = "*")
     @GetMapping("/loaddata/")
     public String loadData(@RequestParam List<String> files){
         return initAwsJob.loadData(files);

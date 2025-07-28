@@ -31,9 +31,9 @@ public class HoldingsService {
     @Autowired
     private TradeJedisService tradeJedisService;
 
-    public boolean buyTradeToHolding(String symbol, Integer qty){
+    public boolean buyTradeToHolding(String symbol, Integer qty, Integer userId){
         HoldingEntity entity = new HoldingEntity();
-        entity.setUsrId(3);
+        entity.setUsrId(userId);
         entity.setTckrSymb(symbol);
         entity.setAction("B");
         entity.setQty(qty);
@@ -46,18 +46,18 @@ public class HoldingsService {
         try{
             holdingJpaRepository.save(entity);
         }catch (Exception e){
-            log.error("Error while buyTradeToHolding Symbol {} Qty {}",symbol , qty);
+            log.error("Error while buyTradeToHolding Symbol {} Qty {} UserId {}",symbol , qty, userId);
             log.error(e.getLocalizedMessage());
             return false;
         }
 
-        log.info("BuyTradeToHolding Symbol {} Qty {} successfull. ",symbol , qty);
+        log.info("BuyTradeToHolding Symbol {} Qty {} UserId {} successfull. ",symbol , qty, userId);
         return true;
     }
 
-    public boolean sellTradeToHolding(String symbol, Integer qty){
+    public boolean sellTradeToHolding(String symbol, Integer qty, Integer userId){
         HoldingEntity entity = new HoldingEntity();
-        entity.setUsrId(3);
+        entity.setUsrId(userId);
         entity.setTckrSymb(symbol);
         entity.setAction("S");
         entity.setQty(qty);
@@ -70,11 +70,11 @@ public class HoldingsService {
         try{
             holdingJpaRepository.save(entity);
         }catch (Exception e){
-            log.error("Error while sellTradeToHolding Symbol {} Qty {}",symbol , qty);
+            log.error("Error while sellTradeToHolding Symbol {} Qty {} UserId {}",symbol , qty, userId);
             log.error(e.getLocalizedMessage());
             return false;
         }
-        log.info("SellTradeToHolding Symbol {} Qty {} successfull. ",symbol , qty);
+        log.info("SellTradeToHolding Symbol {} Qty {} UserId {} successfull. ",symbol , qty, userId);
         return true;
     }
 

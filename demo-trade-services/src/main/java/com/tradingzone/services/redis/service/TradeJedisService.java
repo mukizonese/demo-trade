@@ -90,16 +90,29 @@ public class TradeJedisService {
         String symbols = unifiedJedis.hget(cache, key);
         //log.info("fetchAll before : {} {} Symbols in Cache {} ", cache, key, symbols);
 
+        if (symbols == null || symbols.trim().isEmpty()) {
+            log.warn("No symbols found for cache: {} key: {}", cache, key);
+            return trdFinalList;
+        }
+
         String[] symMap = symbols.split(",");
 
         Map<String,String> symfullMap = unifiedJedis.hgetAll("Trades");
-        //log.info("fetchAll getALl Symbols in Trades {} ", symfullMap);
+        log.info("fetchAll getALl Symbols in Trades {} ", symfullMap);
 
             for (String symb :symMap){
                 //List<TradeJedisCache> objectList = new ArrayList<TradeJedisCache>();
                 //String dateString = entry.getValue().substring(1, 20);
+                
+                String symbolDate = symfullMap.get(symb);
+                log.info("Comparing dateString: '{}' with symbolDate: '{}' for symbol: {}", dateString, symbolDate, symb);
 
-                if(dateString.equalsIgnoreCase(gson.fromJson(symfullMap.get(symb), String.class))){
+                // Clean up symbolDate by removing quotes if present
+                if (symbolDate != null && symbolDate.startsWith("\"") && symbolDate.endsWith("\"")) {
+                    symbolDate = symbolDate.substring(1, symbolDate.length() - 1);
+                }
+
+                if(dateString.equalsIgnoreCase(symbolDate)){
                     try{
                         //rev max min
                         //List<String> trdList = unifiedJedis.zrevrangeByScore(symb, max , min,0,1);
@@ -107,9 +120,13 @@ public class TradeJedisService {
                         //log.info("ZREVRANGEBYSCORE {} {} {}", symb, max, min);
                         List<String> trdList = unifiedJedis.zrevrangeByScore(symb, max , min);
                         //List<String> trdList = unifiedJedis.zrevrangeByScore(symb, max , min);
+                        log.info("Trade list for {}: {}", symb, trdList);
                         if(trdList == null){
-                            System.out.println("Symbol: " + symb );
+                            log.warn("Symbol: {} - trdList is null", symb);
+                        }else if(trdList.isEmpty()){
+                            log.warn("Symbol: {} - trdList is empty", symb);
                         }else{
+                            log.info("Symbol: {} - Found {} trades", symb, trdList.size());
                             for (String trd : trdList) {
                                 TradeJedisCache convertedObject = gson.fromJson(trd, TradeJedisCache.class);
                                 trdFinalList.add(convertedObject);
@@ -119,6 +136,7 @@ public class TradeJedisService {
                         }
                     }catch(Exception ex){
                         //Some symbols data not found on some dates eg DIGIDRIVE avail from 2024-10-08 00:00:00 not before
+                        log.error("Error processing symbol {}: {}", symb, ex.getMessage());
                         //ex.printStackTrace();
                     }
                 }
@@ -147,7 +165,13 @@ public class TradeJedisService {
                     //rev max min
                     //List<String> trdList = unifiedJedis.zrevrangeByScore(entry.getKey(), max , min,0,1);
                     if(live){
-                        if(dateString.equalsIgnoreCase(gson.fromJson(entry.getValue(), String.class)) ){
+                        String entryValue = entry.getValue();
+                        // Clean up entryValue by removing quotes if present
+                        if (entryValue != null && entryValue.startsWith("\"") && entryValue.endsWith("\"")) {
+                            entryValue = entryValue.substring(1, entryValue.length() - 1);
+                        }
+                        
+                        if(dateString.equalsIgnoreCase(entryValue)){
                             trdList = unifiedJedis.zrevrangeByScore(entry.getKey(), max , min);
                         }
 

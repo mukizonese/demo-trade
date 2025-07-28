@@ -17,13 +17,11 @@ public class HoldingsController {
     @Autowired
     private HoldingsService holdingsService;
 
-    @CrossOrigin(origins = "*")
     @GetMapping("all")
     public List<HoldingEntity> getHoldings() throws Exception {
         return holdingsService.fetchAllHoldings();
     }
 
-    @CrossOrigin(origins = "*")
     @GetMapping("/{userId}")
     public Holdings getHoldings(@PathVariable Integer userId) throws Exception {
 
@@ -33,16 +31,14 @@ public class HoldingsController {
         return  holdings;
     }
 
-    @CrossOrigin(origins = "*")
     @PutMapping("/buy/{symbol}")
-    public boolean buyTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty) {
-        return holdingsService.buyTradeToHolding(symbol,qty);
+    public boolean buyTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty, @RequestParam Integer userId) {
+        return holdingsService.buyTradeToHolding(symbol, qty, userId);
     }
 
-    @CrossOrigin(origins = "*")
     @PutMapping("/sell/{symbol}")
-    public boolean sellTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty) {
-        return holdingsService.sellTradeToHolding(symbol,qty);
+    public boolean sellTradeToHolding(@PathVariable String symbol, @RequestParam Integer qty, @RequestParam Integer userId) {
+        return holdingsService.sellTradeToHolding(symbol, qty, userId);
     }
 
 

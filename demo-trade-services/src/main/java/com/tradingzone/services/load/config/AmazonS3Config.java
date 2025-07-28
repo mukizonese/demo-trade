@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import java.net.URI;
+import software.amazon.awssdk.services.s3.S3Configuration;
+
 @Configuration
 public class AmazonS3Config {
 
@@ -20,6 +22,9 @@ public class AmazonS3Config {
 
     @Value("${aws.endpoint.url}")
     private String endpointUrl;
+
+    @Value("${aws.usePathStyle}")
+    private Boolean usePathStyle;
 
     /*@Bean
     public AmazonS3 amazonS3(){
@@ -37,6 +42,9 @@ public class AmazonS3Config {
                 .region(Region.of(region))
                 .credentialsProvider(StaticCredentialsProvider.create(AwsBasicCredentials.create(accessKey, secretKey)))
                 .endpointOverride(URI.create(endpointUrl))
+                .serviceConfiguration(S3Configuration.builder()
+                  .pathStyleAccessEnabled(usePathStyle)
+                  .build())
                 .build();
     }
 }
