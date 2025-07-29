@@ -24,11 +24,14 @@ public class HoldingsController {
 
     @GetMapping("/{userId}")
     public Holdings getHoldings(@PathVariable Integer userId) throws Exception {
+        log.info("Received request for holdings for userId: {}", userId);
 
         Holdings holdings = holdingsService.fetchHoldings(userId);
-        ///log.info("In HoldingsController.getHoldings() userId > {} Curr Val {} PNL {} Day PNL {}",
-           //     userId, holdings.getTotCurrValue(), holdings.getTotNetChng(), holdings.getTotDayChng());
-        return  holdings;
+        
+        log.info("Returning holdings for userId {}: {} transactions, total value: {}", 
+                userId, holdings.getTransactionlist().size(), holdings.getTotCurrValue());
+        
+        return holdings;
     }
 
     @PutMapping("/buy/{symbol}")

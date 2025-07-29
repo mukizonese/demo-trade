@@ -4,6 +4,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 
 
@@ -11,14 +12,14 @@ import java.util.List;
 @NoArgsConstructor
 public class Holdings {
 
-    private BigDecimal totInvestment ;
-    private BigDecimal totCurrValue ;
-    private BigDecimal totPnl ;
-    private BigDecimal totPnlPct ;
-    private BigDecimal totNetChng ;
-    private BigDecimal totNetChngPct ;
-    private BigDecimal totDayChng ;
-    private BigDecimal totDayChngPct ;
+    private BigDecimal totInvestment = BigDecimal.ZERO;
+    private BigDecimal totCurrValue = BigDecimal.ZERO;
+    private BigDecimal totPnl = BigDecimal.ZERO;
+    private BigDecimal totPnlPct = BigDecimal.ZERO;
+    private BigDecimal totNetChng = BigDecimal.ZERO;
+    private BigDecimal totNetChngPct = BigDecimal.ZERO;
+    private BigDecimal totDayChng = BigDecimal.ZERO;
+    private BigDecimal totDayChngPct = BigDecimal.ZERO;
 
-    private List<HoldingValue> transactionlist;
+    private List<HoldingValue> transactionlist = new ArrayList<>();
 }

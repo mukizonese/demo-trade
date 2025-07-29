@@ -85,10 +85,25 @@ public class HoldingsService {
     }
 
     public Holdings fetchHoldings(Integer userId){
-
-        Map<String, List<HoldingEntity>> mapHoldingEntity = convertListToMap(holdingJpaRepository.findByUsrId(userId));
+        log.info("Fetching holdings for userId: {}", userId);
+        
+        List<HoldingEntity> userHoldings = holdingJpaRepository.findByUsrId(userId);
+        log.info("Found {} holding entities for userId: {}", userHoldings.size(), userId);
+        
+        if (userHoldings.isEmpty()) {
+            log.warn("No holding entities found for userId: {}", userId);
+            return new Holdings(); // Return empty holdings
+        }
+        
+        Map<String, List<HoldingEntity>> mapHoldingEntity = convertListToMap(userHoldings);
+        log.info("Converted to {} unique symbols for userId: {}", mapHoldingEntity.size(), userId);
+        
         List<HoldingValue> holdingValueLst = convertEntityToHolding(mapHoldingEntity);
+        log.info("Converted to {} holding values for userId: {}", holdingValueLst.size(), userId);
+        
         Holdings holdings = averageCostTotal(holdingValueLst);
+        log.info("Final holdings for userId {}: {} transactions, total value: {}", 
+                userId, holdings.getTransactionlist().size(), holdings.getTotCurrValue());
 
         return holdings;
     }
@@ -101,10 +116,19 @@ public class HoldingsService {
             String symbol = (String)iterator.next();
             List<HoldingEntity> lst = mapHoldingEntity.get(symbol);
             if(!lst.isEmpty()){
+                log.debug("Processing symbol: {} with {} transactions", symbol, lst.size());
                 TradeJedisCache trade = tradeJedisService.fetchLatestPrice(symbol);
+                if (trade == null) {
+                    log.warn("No latest price found for symbol: {}", symbol);
+                    continue;
+                }
                 HoldingValue holdingValue = averageCostSymbol(symbol, lst, trade);
+                log.debug("Symbol: {} - AvgQty: {}, AvgCost: {}", symbol, holdingValue.getAvgQty(), holdingValue.getAvgCost());
                 if(holdingValue.getAvgQty() >0){
                     holdingValueLst.add(holdingValue);
+                    log.debug("Added holding for symbol: {}", symbol);
+                } else {
+                    log.debug("Skipped holding for symbol: {} (avgQty <= 0)", symbol);
                 }
 
             }
@@ -124,16 +148,23 @@ public class HoldingsService {
 
         for (HoldingEntity holdingEntity : lst) {
             String action = holdingEntity.getAction();
+            log.debug("Processing transaction: Symbol={}, Action={}, Qty={}, Price={}", 
+                     symbol, action, holdingEntity.getQty(), holdingEntity.getPric());
+            
             if("B".equalsIgnoreCase(action) || "BUY".equalsIgnoreCase(action)){
                 qty += holdingEntity.getQty();
                 sum += holdingEntity.getQty() * holdingEntity.getPric();
+                log.debug("BUY: qty={}, sum={}", qty, sum);
 
             }else if("S".equalsIgnoreCase(action) || "SELL".equalsIgnoreCase(action)){
                 qty -= holdingEntity.getQty();
                 sum -= holdingEntity.getQty() * holdingEntity.getPric();
+                log.debug("SELL: qty={}, sum={}", qty, sum);
 
             }
         }
+        
+        log.debug("Final calculation for symbol {}: qty={}, sum={}", symbol, qty, sum);
 
         holdingValue.setAvgQty(qty);
         if(qty >0){

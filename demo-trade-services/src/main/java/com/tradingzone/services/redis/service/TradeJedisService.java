@@ -98,7 +98,7 @@ public class TradeJedisService {
         String[] symMap = symbols.split(",");
 
         Map<String,String> symfullMap = unifiedJedis.hgetAll("Trades");
-        log.info("fetchAll getALl Symbols in Trades {} ", symfullMap);
+        //log.info("fetchAll getALl Symbols in Trades {} ", symfullMap);
 
             for (String symb :symMap){
                 //List<TradeJedisCache> objectList = new ArrayList<TradeJedisCache>();
@@ -111,8 +111,14 @@ public class TradeJedisService {
                 if (symbolDate != null && symbolDate.startsWith("\"") && symbolDate.endsWith("\"")) {
                     symbolDate = symbolDate.substring(1, symbolDate.length() - 1);
                 }
+                
+                // Clean up dateString by removing quotes if present
+                String cleanDateString = dateString;
+                if (cleanDateString != null && cleanDateString.startsWith("\"") && cleanDateString.endsWith("\"")) {
+                    cleanDateString = cleanDateString.substring(1, cleanDateString.length() - 1);
+                }
 
-                if(dateString.equalsIgnoreCase(symbolDate)){
+                if(cleanDateString.equalsIgnoreCase(symbolDate)){
                     try{
                         //rev max min
                         //List<String> trdList = unifiedJedis.zrevrangeByScore(symb, max , min,0,1);
@@ -171,7 +177,13 @@ public class TradeJedisService {
                             entryValue = entryValue.substring(1, entryValue.length() - 1);
                         }
                         
-                        if(dateString.equalsIgnoreCase(entryValue)){
+                        // Clean up dateString by removing quotes if present
+                        String cleanDateString = dateString;
+                        if (cleanDateString != null && cleanDateString.startsWith("\"") && cleanDateString.endsWith("\"")) {
+                            cleanDateString = cleanDateString.substring(1, cleanDateString.length() - 1);
+                        }
+                        
+                        if(cleanDateString.equalsIgnoreCase(entryValue)){
                             trdList = unifiedJedis.zrevrangeByScore(entry.getKey(), max , min);
                         }
 
@@ -365,6 +377,11 @@ public class TradeJedisService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
 
         try{
+            // Remove quotes if present
+            if (dateString != null && dateString.startsWith("\"") && dateString.endsWith("\"")) {
+                dateString = dateString.substring(1, dateString.length() - 1);
+            }
+            
             LocalDateTime dateTime = LocalDateTime.parse(dateString, formatter);
             ZonedDateTime zonedDateTime = ZonedDateTime.of(dateTime, ZoneId.systemDefault());
             return zonedDateTime.toInstant().toEpochMilli();
