@@ -27,6 +27,8 @@ public class WatchListController {
     @Autowired
     private UserAuthService userAuthService;
 
+    // Commented out - Not used by UI, unprotected APIs
+    /*
     @GetMapping("/symbols")
     public String[] getSymbols(@RequestParam String cache, @RequestParam String key){
         //log.info("In WatchListController.getSymbols() "+ " cache > {} key > {}  ",cache,key);
@@ -48,12 +50,16 @@ public class WatchListController {
         //log.info("In WatchListController.getWLTrades() "+ " cache > {} key > {} date > {} ", cache, key, date);
         return tradeJedisService.fetchAll(cache, key, date);
     }
+    */
 
+    // Public API - Used by UI for latest prices
     @GetMapping("/latestprice/{symbol}")
     public TradeJedisCache fetchLatestPrice(@PathVariable String symbol){
         return tradeJedisService.fetchLatestPrice(symbol);
     }
 
+    // Commented out - Not used by UI, unprotected APIs
+    /*
     // New endpoints for user-specific watchlists
     @GetMapping("/user/{tradingUserId}/symbols")
     public String[] getUserSymbols(@PathVariable String tradingUserId, @RequestParam(defaultValue = "1") int watchlistId){
@@ -108,6 +114,7 @@ public class WatchListController {
         log.info("Creating watchlist {} for user {}", watchlistId, tradingUserId);
         return watchListService.createWatchlist("hash:watchlist", key);
     }
+    */
 
     // Authenticated endpoints that automatically get trading user ID from auth token
     @GetMapping("/my/symbols")

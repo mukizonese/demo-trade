@@ -87,6 +87,46 @@ public class UserAuthService {
         return null;
     }
 
+    public String getUserRole(String authToken) {
+        try {
+            Map<String, Object> userInfo = getUserInfo(authToken);
+            if (userInfo != null && userInfo.containsKey("user")) {
+                Map<String, Object> userData = (Map<String, Object>) userInfo.get("user");
+                if (userData != null && userData.containsKey("role")) {
+                    return userData.get("role").toString();
+                }
+            }
+        } catch (Exception e) {
+            log.error("Error getting user role for token: {}", e.getMessage());
+        }
+        
+        return "guest"; // Default to guest role
+    }
+
+    public boolean hasRole(String authToken, String requiredRole) {
+        String userRole = getUserRole(authToken);
+        
+        // Role hierarchy: guest < trader < admin
+        int userRoleLevel = getRoleLevel(userRole);
+        int requiredRoleLevel = getRoleLevel(requiredRole);
+        
+        return userRoleLevel >= requiredRoleLevel;
+    }
+
+    private int getRoleLevel(String role) {
+        switch (role.toLowerCase()) {
+            case "admin":
+                return 3;
+            case "aitrader":
+                return 2;
+            case "trader":
+                return 1;
+            case "guest":
+            default:
+                return 0;
+        }
+    }
+
     public Map<String, Object> getUserInfo(String authToken) {
         try {
             HttpHeaders headers = new HttpHeaders();
