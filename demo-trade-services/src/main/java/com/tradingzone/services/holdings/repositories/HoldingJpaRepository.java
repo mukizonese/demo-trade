@@ -11,4 +11,5 @@ public interface HoldingJpaRepository extends JpaRepository<HoldingEntity, Integ
 
     List<HoldingEntity> findAll();
     List<HoldingEntity> findByUsrId(Integer userId);
+    List<HoldingEntity> findByUsrIdAndTckrSymbOrderByTradDtDesc(Integer userId, String tckrSymb);
 }

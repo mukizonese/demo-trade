@@ -4,12 +4,14 @@ import com.tradingzone.services.auth.UserAuthService;
 import com.tradingzone.services.holdings.repositories.HoldingEntity;
 import com.tradingzone.services.holdings.service.HoldingsService;
 import com.tradingzone.services.holdings.data.Holdings;
+import com.tradingzone.services.holdings.data.TradeDetail;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.util.List;
+import java.util.ArrayList;
 
 @Slf4j
 @RestController
@@ -125,6 +127,27 @@ public class HoldingsController {
         
         log.info("User {} ({} role) selling {} quantity {}", tradingUserId, userRole, symbol, qty);
         return holdingsService.sellTradeToHolding(symbol, qty, tradingUserId);
+    }
+
+    @GetMapping("/my/trades/{symbol}")
+    public List<TradeDetail> getMyTradeDetails(HttpServletRequest request, 
+                                               @PathVariable String symbol) throws Exception {
+        String authToken = extractAuthToken(request);
+        Integer tradingUserId = userAuthService.getTradingUserId(authToken);
+        
+        if (tradingUserId == null) {
+            log.warn("Could not determine trading user ID from auth token");
+            return new ArrayList<>(); // Return empty list
+        }
+        
+        log.info("Received request for trade details for symbol {} for authenticated user: {}", symbol, tradingUserId);
+
+        List<TradeDetail> tradeDetails = holdingsService.fetchTradeDetailsForSymbol(tradingUserId, symbol);
+        
+        log.info("Returning {} trade details for symbol {} for authenticated user {}", 
+                tradeDetails.size(), symbol, tradingUserId);
+        
+        return tradeDetails;
     }
 
     private String extractAuthToken(HttpServletRequest request) {

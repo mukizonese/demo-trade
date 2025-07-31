@@ -2,6 +2,7 @@ package com.tradingzone.services.holdings.service;
 
 import com.tradingzone.services.holdings.data.HoldingValue;
 import com.tradingzone.services.holdings.data.Holdings;
+import com.tradingzone.services.holdings.data.TradeDetail;
 import com.tradingzone.services.holdings.repositories.HoldingEntity;
 import com.tradingzone.services.holdings.repositories.HoldingJpaRepository;
 import com.tradingzone.services.redis.repositories.TradeJedisCache;
@@ -18,7 +19,9 @@ import java.text.DecimalFormat;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.stream.Collectors;
 
 
 @Slf4j
@@ -108,6 +111,52 @@ public class HoldingsService {
         return holdings;
     }
 
+    public List<TradeDetail> fetchTradeDetailsForSymbol(Integer userId, String symbol) {
+        log.info("Fetching trade details for userId: {} and symbol: {}", userId, symbol);
+        
+        List<HoldingEntity> symbolHoldings = holdingJpaRepository.findByUsrIdAndTckrSymbOrderByTradDtDesc(userId, symbol);
+        log.info("Found {} trade details for symbol {} for userId: {}", symbolHoldings.size(), symbol, userId);
+        
+        // Get current price for P&L calculation
+        TradeJedisCache currentTrade = tradeJedisService.fetchLatestPrice(symbol);
+        BigDecimal currentPrice = currentTrade != null && currentTrade.getLastPric() != null ? 
+            BigDecimal.valueOf(currentTrade.getLastPric()) : BigDecimal.ZERO;
+        
+        List<TradeDetail> tradeDetails = new ArrayList<>();
+        LocalDateTime now = LocalDateTime.now();
+        
+        for (HoldingEntity holding : symbolHoldings) {
+            TradeDetail detail = new TradeDetail();
+            detail.setSymbol(holding.getTckrSymb());
+            detail.setAction(holding.getAction());
+            detail.setQty(holding.getQty());
+            detail.setPrice(BigDecimal.valueOf(holding.getPric()));
+            detail.setTradeDate(holding.getTradDt());
+            detail.setCurrentPrice(currentPrice);
+            
+            // Calculate age in days
+            LocalDateTime tradeDateTime = holding.getTradDt().toLocalDateTime();
+            long ageInDays = ChronoUnit.DAYS.between(tradeDateTime, now);
+            detail.setAgeInDays((int) ageInDays);
+            
+            // Calculate P&L
+            if ("B".equalsIgnoreCase(holding.getAction())) {
+                // For buy trades: P&L = (Current Price - Buy Price) * Quantity
+                BigDecimal pnl = currentPrice.subtract(BigDecimal.valueOf(holding.getPric()))
+                        .multiply(BigDecimal.valueOf(holding.getQty()));
+                detail.setPnl(pnl.setScale(2, RoundingMode.HALF_UP));
+            } else if ("S".equalsIgnoreCase(holding.getAction())) {
+                // For sell trades: P&L = (Sell Price - Current Price) * Quantity
+                BigDecimal pnl = BigDecimal.valueOf(holding.getPric()).subtract(currentPrice)
+                        .multiply(BigDecimal.valueOf(holding.getQty()));
+                detail.setPnl(pnl.setScale(2, RoundingMode.HALF_UP));
+            }
+            
+            tradeDetails.add(detail);
+        }
+        
+        return tradeDetails;
+    }
 
     private List<HoldingValue> convertEntityToHolding(Map<String, List<HoldingEntity>> mapHoldingEntity){
         List<HoldingValue> holdingValueLst = new ArrayList<HoldingValue>();
