@@ -153,6 +153,65 @@ public class TradeJedisService {
         return trdFinalList;
     }
 
+    /**
+     * Fetch watchlist trades with only current prices (no previous prices)
+     * This makes watchlist consistent with trades/holdings for frontend price change effects
+     */
+    public List<TradeJedisCache> fetchWatchlistTrades(String cache, String key, String dateString){
+        List<TradeJedisCache> trdFinalList = new ArrayList<TradeJedisCache>();
+
+        double min = parseDate(dateString);
+        double max = System.currentTimeMillis();
+        
+        String symbols = unifiedJedis.hget(cache, key);
+
+        if (symbols == null || symbols.trim().isEmpty()) {
+            log.warn("No symbols found for cache: {} key: {}", cache, key);
+            return trdFinalList;
+        }
+
+        String[] symMap = symbols.split(",");
+        Map<String,String> symfullMap = unifiedJedis.hgetAll("Trades");
+
+        for (String symb : symMap){
+            String symbolDate = symfullMap.get(symb);
+            if(symbolDate == null){
+                log.warn("Symbol: {} - No date found in Trades cache", symb);
+                continue;
+            }
+
+            String cleanDateString = dateString;
+            if (cleanDateString != null && cleanDateString.startsWith("\"") && cleanDateString.endsWith("\"")) {
+                cleanDateString = cleanDateString.substring(1, cleanDateString.length() - 1);
+            }
+
+            if(cleanDateString.equalsIgnoreCase(symbolDate)){
+                try{
+                    List<String> trdList = unifiedJedis.zrevrangeByScore(symb, max , min);
+                    log.info("Trade list for {}: {}", symb, trdList);
+                    if(trdList == null){
+                        log.warn("Symbol: {} - trdList is null", symb);
+                    }else if(trdList.isEmpty()){
+                        log.warn("Symbol: {} - trdList is empty", symb);
+                    }else{
+                        log.info("Symbol: {} - Found {} trades", symb, trdList.size());
+                        for (String trd : trdList) {
+                            TradeJedisCache convertedObject = gson.fromJson(trd, TradeJedisCache.class);
+                            // Clear previous price to make it consistent with trades/holdings
+                            convertedObject.setPrvsClsgPric(null);
+                            trdFinalList.add(convertedObject);
+                            break;
+                        }
+                    }
+                }catch(Exception ex){
+                    log.error("Error processing symbol {}: {}", symb, ex.getMessage());
+                }
+            }
+        }
+
+        return trdFinalList;
+    }
+
     public List<TradeJedisCache> fetchAllByDate( String dateString, boolean live){
 
         List<TradeJedisCache> trdFinalList = new ArrayList<TradeJedisCache>();

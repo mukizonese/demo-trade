@@ -160,7 +160,9 @@ public class WatchListController {
         
         String key = tradingUserId + ":" + watchlistId;
         log.info("Getting trades for authenticated user: {} watchlist: {} date: {}", tradingUserId, watchlistId, date);
-        return tradeJedisService.fetchAll("hash:watchlist", key, date);
+        // Use the new method that returns only current prices (no previous prices)
+        // This makes watchlist consistent with trades/holdings for frontend price change effects
+        return tradeJedisService.fetchWatchlistTrades("hash:watchlist", key, date);
     }
 
     @PostMapping("/my/watchlist/{watchlistId}")

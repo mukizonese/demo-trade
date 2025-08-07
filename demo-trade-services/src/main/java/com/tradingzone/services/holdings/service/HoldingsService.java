@@ -285,6 +285,14 @@ public class HoldingsService {
         
         holdings.setTotNetChngPct(netChngPct);
         holdings.setTotDayChngPct(dayChngPct);
+        
+        // Calculate P&L percentage
+        BigDecimal totPnlPct = BigDecimal.ZERO;
+        if (holdings.getTotInvestment().compareTo(BigDecimal.ZERO) != 0) {
+            totPnlPct = (holdings.getTotPnl().divide(holdings.getTotInvestment(),pctmc)).multiply(new BigDecimal("100"));
+            totPnlPct = totPnlPct.setScale(2, RoundingMode.UP);
+        }
+        holdings.setTotPnlPct(totPnlPct);
 
         return holdings;
 

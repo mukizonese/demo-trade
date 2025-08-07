@@ -50,8 +50,8 @@ public class TradeDummyService {
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
     
     // Configuration
-    private static final int BATCH_SIZE = 500; // Process 500 symbols per batch (increased for better simulation)
-    private static final int CREATE_INTERVAL_SECONDS = 10;
+    private static final int BATCH_SIZE = 1000; // Increased batch size for faster processing
+    private static final int CREATE_INTERVAL_SECONDS = 5; // Reduced interval for more frequent updates
     private static final int DELETE_INTERVAL_SECONDS = 120;
     
     // Price generation configuration
@@ -62,7 +62,7 @@ public class TradeDummyService {
     private static final double MIN_PRICE = 1.0; // Minimum reasonable price
 
     public TradeDummyService() {
-        executorService = Executors.newScheduledThreadPool(4); // Much smaller thread pool
+        executorService = Executors.newScheduledThreadPool(8); // Increased thread pool for better performance
     }
 
     public void initiateDummyFull(String dateString) throws Exception {
@@ -101,10 +101,37 @@ public class TradeDummyService {
             watchlistSymbols.put(symbol, dateString);
         }
         
-        // Start batch processing
+        // Start batch processing with optimized settings for watchlist
         startBatchProcessing(dateString);
         
-        log.info("Started dummy watchlist service for {} symbols", watchlist.length);
+        log.info("Started dummy watchlist service for {} symbols with optimized performance", watchlist.length);
+    }
+
+    /**
+     * Initiate dummy trading for watchlist with high-frequency updates
+     * @param cache The cache name
+     * @param key The watchlist key
+     * @param dateString The date string for trading simulation
+     */
+    public void initiateDummyWatchListHighFrequency(String cache, String key, String dateString) throws Exception {
+        log.info("initiateDummyWatchListHighFrequency {} {} {}", cache, key, dateString);
+        
+        if (isRunning.get()) {
+            log.warn("Dummy service is already running. Stopping previous instance.");
+            stopDummyService();
+        }
+        
+        String[] watchlist = watchListService.getSymbols(cache, key);
+        
+        // Add watchlist symbols to active set
+        for (String symbol : watchlist) {
+            watchlistSymbols.put(symbol, dateString);
+        }
+        
+        // Start high-frequency batch processing
+        startHighFrequencyBatchProcessing(dateString);
+        
+        log.info("Started high-frequency dummy watchlist service for {} symbols", watchlist.length);
     }
 
     /**
@@ -220,6 +247,32 @@ public class TradeDummyService {
         }
     }
 
+    private void startHighFrequencyBatchProcessing(String dateString) {
+        if (isRunning.compareAndSet(false, true)) {
+            log.info("🚀 Starting high-frequency batch processing for date: {}", dateString);
+            
+            // Schedule batch create task with higher frequency (every 2 seconds)
+            executorService.scheduleWithFixedDelay(
+                new BatchCreateTradeTask(dateString), 
+                0, 
+                2, // Every 2 seconds for high frequency
+                TimeUnit.SECONDS
+            );
+            log.info("📅 Scheduled high-frequency batch create task to run every 2 seconds");
+            
+            // Schedule batch delete task
+            executorService.scheduleWithFixedDelay(
+                new BatchDeleteTradeTask(dateString), 
+                0, 
+                DELETE_INTERVAL_SECONDS, 
+                TimeUnit.SECONDS
+            );
+            log.info("🗑️ Scheduled batch delete task to run every {} seconds", DELETE_INTERVAL_SECONDS);
+        } else {
+            log.warn("⚠️ Batch processing already running, skipping start");
+        }
+    }
+
     public void stopDummyService() {
         if (isRunning.compareAndSet(true, false)) {
             if (executorService != null) {
@@ -240,6 +293,48 @@ public class TradeDummyService {
         for (String symbol : symbolList) {
             clearDummyTrade(symbol, dateString);
         }
+    }
+
+    /**
+     * Cleanup all manually created dummy trades across all symbols
+     * This method finds and deletes all "+30 second" trades that were created by the dummy service
+     * @return Map containing cleanup statistics
+     */
+    public Map<String, Object> clearFullCleanup() throws Exception {
+        log.info("🧹 Starting full cleanup of all manually created dummy trades");
+        
+        List<String> symbolList = tradeJedisService.getSymbols();
+        int totalSymbols = symbolList.size();
+        int processedSymbols = 0;
+        int totalDeletedTrades = 0;
+        Map<String, Integer> symbolDeletionCounts = new HashMap<>();
+        
+        log.info("🔍 Processing {} symbols for cleanup", totalSymbols);
+        
+        for (String symbol : symbolList) {
+            try {
+                int deletedCount = clearAllDummyTradesForSymbol(symbol);
+                if (deletedCount > 0) {
+                    symbolDeletionCounts.put(symbol, deletedCount);
+                    totalDeletedTrades += deletedCount;
+                    log.info("🗑️ Symbol {}: deleted {} dummy trades", symbol, deletedCount);
+                }
+                processedSymbols++;
+            } catch (Exception e) {
+                log.error("❌ Error cleaning up symbol: {}", symbol, e);
+            }
+        }
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("totalSymbols", totalSymbols);
+        result.put("processedSymbols", processedSymbols);
+        result.put("totalDeletedTrades", totalDeletedTrades);
+        result.put("symbolDeletionCounts", symbolDeletionCounts);
+        
+        log.info("✅ Full cleanup completed: {} symbols processed, {} trades deleted", 
+                processedSymbols, totalDeletedTrades);
+        
+        return result;
     }
 
     public void clearDummyWatchList(String cache, String key, String dateString) throws Exception {
@@ -414,6 +509,64 @@ public class TradeDummyService {
         return returnString;
     }
 
+    /**
+     * Clear all dummy trades for a specific symbol by finding all "+30 second" trades
+     * This method identifies manually created trades by their Redis scores
+     * @param symbol The symbol to clean up
+     * @return Number of trades deleted
+     */
+    private int clearAllDummyTradesForSymbol(String symbol) throws Exception {
+        try {
+            // Get all trades for the symbol
+            List<String> allTrades = unifiedJedis.zrange(symbol, 0, -1);
+            if (allTrades.isEmpty()) {
+                return 0;
+            }
+            
+            int deletedCount = 0;
+            Set<Double> scoresToDelete = new HashSet<>();
+            
+            // Analyze each trade to find "+30 second" trades
+            for (String tradeJson : allTrades) {
+                try {
+                    TradeJedisCache trade = gson.fromJson(tradeJson, TradeJedisCache.class);
+                    if (trade != null && trade.getTradDt() != null) {
+                        // Calculate the base score (00:00:00) and +30 second score
+                        LocalDateTime baseTime = trade.getTradDt().withSecond(0).withNano(0);
+                        LocalDateTime plus30Time = baseTime.plusSeconds(30);
+                        
+                        double baseScore = ZonedDateTime.of(baseTime, ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        double plus30Score = ZonedDateTime.of(plus30Time, ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        
+                        // Get the actual score of this trade
+                        double actualScore = ZonedDateTime.of(trade.getTradDt(), ZoneId.systemDefault()).toInstant().toEpochMilli();
+                        
+                        // If this trade has a "+30 second" score, mark it for deletion
+                        if (Math.abs(actualScore - plus30Score) < 1000) { // Within 1 second tolerance
+                            scoresToDelete.add(actualScore);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.debug("Error parsing trade JSON for symbol {}: {}", symbol, e.getMessage());
+                }
+            }
+            
+            // Delete all identified "+30 second" trades
+            for (Double score : scoresToDelete) {
+                double deleted = unifiedJedis.zremrangeByScore(symbol, score, score);
+                if (deleted > 0) {
+                    deletedCount += (int) deleted;
+                }
+            }
+            
+            return deletedCount;
+            
+        } catch (Exception e) {
+            log.error("Error clearing all dummy trades for symbol: {}", symbol, e);
+            return 0;
+        }
+    }
+
     private void setPriceChange(TradeJedisCache tradeCache) {
         DecimalFormat df = new DecimalFormat("#,###.##");
         MathContext mc = new MathContext(2);
@@ -475,13 +628,20 @@ public class TradeDummyService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern(pattern, Locale.ENGLISH);
 
         try {
-            LocalDateTime dateTime = LocalDateTime.parse(dateString, formatter);
+            // Clean the date string by removing any surrounding quotes
+            String cleanDateString = dateString.trim();
+            if (cleanDateString.startsWith("\"") && cleanDateString.endsWith("\"")) {
+                cleanDateString = cleanDateString.substring(1, cleanDateString.length() - 1);
+                log.debug("🧹 Cleaned date string from '{}' to '{}'", dateString, cleanDateString);
+            }
+            
+            LocalDateTime dateTime = LocalDateTime.parse(cleanDateString, formatter);
             ZonedDateTime zonedDateTime = ZonedDateTime.of(dateTime.plusSeconds(addSeconds), ZoneId.systemDefault());
             long result = zonedDateTime.toInstant().toEpochMilli();
-            log.debug("Parsed date: {} + {}s = {} (timestamp: {})", dateString, addSeconds, zonedDateTime, result);
+            log.debug("Parsed date: {} + {}s = {} (timestamp: {})", cleanDateString, addSeconds, zonedDateTime, result);
             return result;
         } catch (Exception pex) {
-            log.error("❌ Error parsing date: {}", dateString, pex);
+            log.error("❌ Error parsing date: '{}'", dateString, pex);
         }
         return timemillis;
     }
@@ -529,9 +689,9 @@ public class TradeDummyService {
                     log.debug("Batch {}/{} completed in {}ms", 
                         (i/BATCH_SIZE) + 1, (symbolList.size() + BATCH_SIZE - 1)/BATCH_SIZE, batchTime);
                     
-                    // Small delay between batches to prevent overwhelming Redis
+                    // Minimal delay between batches to prevent overwhelming Redis
                     if (endIndex < symbolList.size()) {
-                        Thread.sleep(10);
+                        Thread.sleep(5); // Reduced delay for faster processing
                     }
                 }
                 
@@ -726,6 +886,7 @@ public class TradeDummyService {
         @Override
         public void run() {
             if (!isRunning.get()) {
+                log.debug("Batch delete task not running, skipping...");
                 return;
             }
 
@@ -735,8 +896,13 @@ public class TradeDummyService {
                 allSymbols.addAll(activeSymbols.keySet());
                 allSymbols.addAll(watchlistSymbols.keySet());
 
+                log.info("🗑️ Batch delete task running for {} symbols", allSymbols.size());
+
                 // Process in batches
                 List<String> symbolList = new ArrayList<>(allSymbols);
+                int processedCount = 0;
+                long startTime = System.currentTimeMillis();
+                
                 for (int i = 0; i < symbolList.size(); i += BATCH_SIZE) {
                     int endIndex = Math.min(i + BATCH_SIZE, symbolList.size());
                     List<String> batch = symbolList.subList(i, endIndex);
@@ -744,28 +910,35 @@ public class TradeDummyService {
                     // Process batch
                     for (String symbol : batch) {
                         processDeleteTrade(symbol, dateString);
+                        processedCount++;
                     }
                     
-                    // Small delay between batches
+                    // Minimal delay between batches
                     if (endIndex < symbolList.size()) {
-                        Thread.sleep(10);
+                        Thread.sleep(5); // Reduced delay for faster processing
                     }
                 }
+                
+                long totalTime = System.currentTimeMillis() - startTime;
+                log.info("✅ Batch delete task completed. Processed {} symbols in {}ms", processedCount, totalTime);
             } catch (Exception e) {
-                log.error("Error in batch delete trade task", e);
+                log.error("❌ Error in batch delete trade task", e);
             }
         }
 
-        private void processDeleteTrade(String symbol, String dateString) {
+                private void processDeleteTrade(String symbol, String dateString) {
             try {
                 double toDeleteScore = parseDate(dateString, 30);
                 double deletedScore = unifiedJedis.zremrangeByScore(symbol, toDeleteScore, toDeleteScore);
                 if (deletedScore != 0.0) {
-                    log.debug("DeleteTradeTask {} {} Score to delete {} returned score {}", 
+                    log.info("🗑️ DeleteTradeTask {} {} Score to delete {} returned score {}", 
                         symbol, dateString, toDeleteScore, deletedScore);
+                } else {
+                    log.debug("🗑️ DeleteTradeTask {} {} Score to delete {} - no trades deleted", 
+                        symbol, dateString, toDeleteScore);
                 }
             } catch (Exception e) {
-                log.error("Error processing delete trade for symbol: {}", symbol, e);
+                log.error("❌ Error processing delete trade for symbol: {}", symbol, e);
             }
         }
     }

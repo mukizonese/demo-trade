@@ -16,7 +16,7 @@ public class TradeDummyController {
 
     @Autowired
     private TradeDummyService tradeDummyService;
-
+    
     // ========== FULL SYMBOL METHODS ==========
 
     @PostMapping("/initiate-full")
@@ -60,6 +60,28 @@ public class TradeDummyController {
                 "status", "ERROR",
                 "message", "Failed to clear dummy full trading: " + e.getMessage(),
                 "date", date
+            );
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    @PostMapping("/clear-full-cleanup")
+    public ResponseEntity<Map<String, Object>> clearFullCleanup() {
+        try {
+            log.info("Starting full cleanup of all manually created dummy trades across all symbols");
+            Map<String, Object> cleanupResult = tradeDummyService.clearFullCleanup();
+            
+            Map<String, Object> response = Map.of(
+                "status", "SUCCESS",
+                "message", "Full cleanup completed",
+                "result", cleanupResult
+            );
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error during full cleanup", e);
+            Map<String, Object> response = Map.of(
+                "status", "ERROR",
+                "message", "Failed to perform full cleanup: " + e.getMessage()
             );
             return ResponseEntity.status(500).body(response);
         }
@@ -266,58 +288,8 @@ public class TradeDummyController {
         }
     }
 
-    // ========== LEGACY ENDPOINTS (for backward compatibility) ==========
 
-    @GetMapping("/initiateDummyFull")
-    public void initiateDummyFullLegacy(@RequestParam String date) throws Exception {
-        log.warn("Using legacy endpoint /initiateDummyFull - consider using /initiate-full");
-        tradeDummyService.initiateDummyFull(date);
-    }
-
-    @GetMapping("/clearDummyFull")
-    public void clearDummyFullLegacy(@RequestParam String date) throws Exception {
-        log.warn("Using legacy endpoint /clearDummyFull - consider using /clear-full");
-        tradeDummyService.clearDummyFull(date);
-    }
-
-    @GetMapping("/initiateDummyWatchList")
-    public void initiateDummyWatchListLegacy(@RequestParam String cache, @RequestParam String key, @RequestParam String date) throws Exception {
-        log.warn("Using legacy endpoint /initiateDummyWatchList - consider using /initiate-watchlist");
-        tradeDummyService.initiateDummyWatchList(cache, key, date);
-    }
-
-    @GetMapping("/clearDummyWatchList")
-    public void clearDummyWatchListLegacy(@RequestParam String cache, @RequestParam String key, @RequestParam String date) throws Exception {
-        log.warn("Using legacy endpoint /clearDummyWatchList - consider using /clear-watchlist");
-        tradeDummyService.clearDummyWatchList(cache, key, date);
-    }
-
-    @GetMapping("/initiateDummyTrade")
-    public ResponseEntity<Map<String, Object>> initiateDummyDataLegacy(@RequestParam String symbol, @RequestParam String date) {
-        log.warn("Using legacy endpoint /initiateDummyTrade - consider using batch processing endpoints");
-        try {
-            String result = tradeDummyService.initiateDummyTrade(symbol, date);
-            Map<String, Object> response = Map.of(
-                "status", "SUCCESS",
-                "message", "Dummy trade initiated for symbol: " + symbol,
-                "symbol", symbol,
-                "date", date,
-                "result", result
-            );
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            log.error("Error in legacy initiateDummyTrade for symbol: {} date: {}", symbol, date, e);
-            Map<String, Object> response = Map.of(
-                "status", "ERROR",
-                "message", "Failed to initiate dummy trade: " + e.getMessage(),
-                "symbol", symbol,
-                "date", date
-            );
-            return ResponseEntity.status(500).body(response);
-        }
-    }
-
-    // ========== DEBUG ENDPOINTS ==========
+     // ========== DEBUG ENDPOINTS ==========
 
     @GetMapping("/debug-symbol")
     public ResponseEntity<Map<String, Object>> debugSymbol(@RequestParam String symbol) {
@@ -352,7 +324,8 @@ public class TradeDummyController {
                 "baseVolatility", 0.02,
                 "largeMoveProbability", 0.1,
                 "largeMoveRange", 0.06,
-                "trendBias", 0.005
+                "trendBias", 0.005,
+                "note", "Auto-start configuration is managed via application properties"
             );
             
             Map<String, Object> response = Map.of(
